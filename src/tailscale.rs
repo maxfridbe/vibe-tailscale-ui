@@ -69,8 +69,7 @@ impl TailscaleStatus {
 }
 
 pub async fn get_status() -> Result<TailscaleStatus, Box<dyn std::error::Error + Send + Sync>> {
-    let output = Command::new("distrobox-host-exec")
-        .arg("tailscale")
+    let output = Command::new("tailscale")
         .arg("status")
         .arg("--json")
         .output()
@@ -86,8 +85,7 @@ pub async fn get_status() -> Result<TailscaleStatus, Box<dyn std::error::Error +
 }
 
 pub async fn set_exit_node(node_ip: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let output = Command::new("distrobox-host-exec")
-        .arg("tailscale")
+    let output = Command::new("tailscale")
         .arg("up")
         .arg("--exit-node")
         .arg(node_ip)
@@ -102,8 +100,7 @@ pub async fn set_exit_node(node_ip: &str) -> Result<(), Box<dyn std::error::Erro
 }
 
 pub async fn disable_exit_node() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let output = Command::new("distrobox-host-exec")
-        .arg("tailscale")
+    let output = Command::new("tailscale")
         .arg("up")
         .arg("--exit-node=")
         .output()

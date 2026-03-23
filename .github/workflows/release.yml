@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libclang-dev libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev
+      - name: Build
+        run: cargo build --release
+      - name: Rename binary
+        run: mv target/release/clay-rst-ui tailscale-ui-linux
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tailscale-ui-linux
+          path: tailscale-ui-linux
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: cargo build --release
+      - name: Rename binary
+        run: move target/release/clay-rst-ui.exe tailscale-ui-windows.exe
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tailscale-ui-windows
+          path: tailscale-ui-windows.exe
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tailscale-ui-linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: tailscale-ui-windows
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            tailscale-ui-linux
+            tailscale-ui-windows.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

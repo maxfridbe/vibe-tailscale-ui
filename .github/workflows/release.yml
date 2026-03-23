@@ -26,7 +26,7 @@ jobs:
       - name: Generate DEB
         run: cargo deb --no-build
       - name: Generate RPM
-        run: cargo generate-rpm --no-build
+        run: cargo generate-rpm
       - name: Rename binary
         run: mv target/release/clay-rst-ui tailscale-ui-linux
       - name: Upload Artifacts

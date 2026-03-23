@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 mod tailscale;
 
 use clay_layout::layout::{Padding, LayoutAlignmentX, LayoutAlignmentY, Alignment, LayoutDirection};

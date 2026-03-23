@@ -2,6 +2,12 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use tokio::process::Command;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct TailscaleStatus {
@@ -69,11 +75,13 @@ impl TailscaleStatus {
 }
 
 pub async fn get_status() -> Result<TailscaleStatus, Box<dyn std::error::Error + Send + Sync>> {
-    let output = Command::new("tailscale")
-        .arg("status")
-        .arg("--json")
-        .output()
-        .await?;
+    let mut cmd = Command::new("tailscale");
+    cmd.arg("status").arg("--json");
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
 
     if !output.status.success() {
         return Err(format!("Tailscale command failed: {}", String::from_utf8_lossy(&output.stderr)).into());
@@ -85,12 +93,13 @@ pub async fn get_status() -> Result<TailscaleStatus, Box<dyn std::error::Error +
 }
 
 pub async fn set_exit_node(node_ip: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let output = Command::new("tailscale")
-        .arg("up")
-        .arg("--exit-node")
-        .arg(node_ip)
-        .output()
-        .await?;
+    let mut cmd = Command::new("tailscale");
+    cmd.arg("up").arg("--exit-node").arg(node_ip);
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
 
     if !output.status.success() {
         return Err(format!("Tailscale up failed: {}", String::from_utf8_lossy(&output.stderr)).into());
@@ -100,11 +109,13 @@ pub async fn set_exit_node(node_ip: &str) -> Result<(), Box<dyn std::error::Erro
 }
 
 pub async fn disable_exit_node() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let output = Command::new("tailscale")
-        .arg("up")
-        .arg("--exit-node=")
-        .output()
-        .await?;
+    let mut cmd = Command::new("tailscale");
+    cmd.arg("up").arg("--exit-node=");
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
 
     if !output.status.success() {
         return Err(format!("Tailscale up failed: {}", String::from_utf8_lossy(&output.stderr)).into());

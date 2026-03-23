@@ -16,16 +16,27 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake libclang-dev libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev
+          sudo apt-get install -y cmake libclang-dev libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev rpm
+      - name: Install packaging tools
+        run: |
+          cargo install cargo-deb
+          cargo install cargo-generate-rpm
       - name: Build
         run: cargo build --release
+      - name: Generate DEB
+        run: cargo deb --no-build
+      - name: Generate RPM
+        run: cargo generate-rpm --no-build
       - name: Rename binary
         run: mv target/release/clay-rst-ui tailscale-ui-linux
-      - name: Upload Artifact
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tailscale-ui-linux
-          path: tailscale-ui-linux
+          name: linux-packages
+          path: |
+            tailscale-ui-linux
+            target/debian/*.deb
+            target/generate-rpm/*.rpm
 
   build-windows:
     runs-on: windows-latest
@@ -38,7 +49,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tailscale-ui-windows
+          name: windows-binary
           path: tailscale-ui-windows.exe
 
   release:
@@ -47,15 +58,19 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: tailscale-ui-linux
+          name: linux-packages
+          path: .
       - uses: actions/download-artifact@v4
         with:
-          name: tailscale-ui-windows
+          name: windows-binary
+          path: .
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             tailscale-ui-linux
             tailscale-ui-windows.exe
+            *.deb
+            *.rpm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

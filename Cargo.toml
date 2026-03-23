@@ -1,0 +1,11 @@
+[package]
+name = "clay-rst-ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clay-layout = { version = "0.4.0", features = ["raylib-renderer"] }
+raylib = "5.5"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tokio = { version = "1.50.0", features = ["full"] }

@@ -1,6 +1,6 @@
 [package]
-name = "clay-rst-ui"
-version = "0.1.4"
+name = "vibe-tailscale-ui"
+version = "0.1.5"
 edition = "2024"
 license = "MIT"
 description = "A modern Tailscale node list and exit node selector UI"
@@ -12,12 +12,12 @@ depends = "$auto, libasound2, libx11-6, libxrandr2, libxi6, libgl1, libglu1-mesa
 section = "utils"
 priority = "optional"
 assets = [
-    ["target/release/clay-rst-ui", "/usr/bin/tailscale-ui", "755"],
+    ["target/release/vibe-tailscale-ui", "/usr/bin/tailscale-ui", "755"],
 ]
 
 [package.metadata.generate-rpm]
 assets = [
-    { source = "target/release/clay-rst-ui", dest = "/usr/bin/tailscale-ui", mode = "755" }
+    { source = "target/release/vibe-tailscale-ui", dest = "/usr/bin/tailscale-ui", mode = "755" }
 ]
 
 [dependencies]

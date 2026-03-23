@@ -28,15 +28,19 @@ jobs:
       - name: Generate RPM
         run: cargo generate-rpm
       - name: Rename binary
-        run: mv target/release/clay-rst-ui tailscale-ui-linux
+        run: mv target/release/vibe-tailscale-ui tailscale-ui-linux
+      - name: Copy packages to root
+        run: |
+          cp target/debian/*.deb .
+          cp target/generate-rpm/*.rpm .
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-packages
+          name: linux-artifacts
           path: |
             tailscale-ui-linux
-            target/debian/*.deb
-            target/generate-rpm/*.rpm
+            *.deb
+            *.rpm
 
   build-windows:
     runs-on: windows-latest
@@ -45,7 +49,7 @@ jobs:
       - name: Build
         run: cargo build --release
       - name: Rename binary
-        run: move target/release/clay-rst-ui.exe tailscale-ui-windows.exe
+        run: move target/release/vibe-tailscale-ui.exe tailscale-ui-windows.exe
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -58,7 +62,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: linux-packages
+          name: linux-artifacts
           path: .
       - uses: actions/download-artifact@v4
         with:

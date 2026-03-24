@@ -5,6 +5,8 @@ A modern, interactive graphical interface for managing your Tailscale network, b
 ## Features
 
 - **Real-time Node Monitoring**: Displays all nodes in your Tailnet with automatic periodic refreshes.
+- **Dynamic FPS & CPU Optimization**: Intelligently switches between 1 FPS (background/idle), 15 FPS (focused/idle), and 60 FPS (active) to reduce CPU usage to near 0%.
+- **Floating Notification Banner**: A smooth, overlay-style notification banner for clipboard confirmation and status updates.
 - **Advanced Sorting**: Automatically sorts by:
   1.  **Online Status** (Online nodes first)
   2.  **Last Seen** (Most recently active nodes first)

@@ -2,6 +2,7 @@
 mod tailscale;
 
 use clay_layout::layout::{Padding, LayoutAlignmentX, LayoutAlignmentY, Alignment, LayoutDirection};
+use clay_layout::elements::{FloatingAttachPointType, FloatingAttachToElement, PointerCaptureMode};
 use clay_layout::math::{Vector2, Dimensions};
 use clay_layout::{Clay, Declaration, Color, grow, fixed};
 use clay_layout::render_commands::{RenderCommandConfig};
@@ -31,6 +32,7 @@ struct AppState {
     error: Option<String>,
     status_msg: Option<String>,
     search_query: String,
+    data_changed: bool,
 }
 
 struct StringArena {
@@ -64,6 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         error: None,
         status_msg: None,
         search_query: String::new(),
+        data_changed: false,
     }));
 
     // Periodic status refresh
@@ -83,6 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Disable Esc as the exit key
     rl.set_exit_key(None);
+    rl.set_target_fps(60);
 
     // Prepare character string including Nerd Font icons
     let mut chars_str: String = (32..127).map(|c| c as u8 as char).collect();
@@ -114,38 +118,104 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Dimensions::new(width, size)
     });
 
+    let mut last_input_time = std::time::Instant::now();
+    let mut current_target_fps = 60;
+    let mut active_notification: Option<(String, std::time::Instant)> = None;
+
     while !rl.window_should_close() {
         arena.clear();
+
+        // Dynamic FPS logic
+        let mut activity = false;
+        if rl.get_mouse_delta() != raylib::math::Vector2::zero() || 
+           rl.get_mouse_wheel_move() != 0.0 ||
+           rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
+            activity = true;
+        }
 
         // Handle scaling
         if rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL) || rl.is_key_down(KeyboardKey::KEY_RIGHT_CONTROL) {
             if rl.is_key_pressed(KeyboardKey::KEY_EQUAL) || rl.is_key_pressed(KeyboardKey::KEY_KP_ADD) {
                 font_scale = (font_scale + 0.1).min(3.0);
+                activity = true;
             }
             if rl.is_key_pressed(KeyboardKey::KEY_MINUS) || rl.is_key_pressed(KeyboardKey::KEY_KP_SUBTRACT) {
                 font_scale = (font_scale - 0.1).max(0.5);
+                activity = true;
             }
         }
 
         // Handle search input
         {
             let mut key_pressed = rl.get_char_pressed();
+            if key_pressed.is_some() { activity = true; }
             while let Some(c) = key_pressed {
                 if (c as u32) >= 32 && (c as u32) <= 126 {
                     let mut guard = state.lock().unwrap();
                     guard.search_query.push(c);
+                    guard.data_changed = true;
                 }
                 key_pressed = rl.get_char_pressed();
             }
             if rl.is_key_pressed(KeyboardKey::KEY_BACKSPACE) {
                 let mut guard = state.lock().unwrap();
                 guard.search_query.pop();
+                guard.data_changed = true;
+                activity = true;
             }
             // Use Escape to clear search
             if rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
                 let mut guard = state.lock().unwrap();
                 guard.search_query.clear();
+                guard.data_changed = true;
+                activity = true;
             }
+        }
+
+        let (current_status, loading, error, status_msg, search_query, data_changed) = {
+            let mut guard = state.lock().unwrap();
+            let changed = guard.data_changed;
+            guard.data_changed = false;
+            let msg = guard.status_msg.take();
+            (guard.status.clone(), guard.loading, guard.error.clone(), msg, guard.search_query.clone(), changed)
+        };
+
+        if let Some(msg) = status_msg {
+            active_notification = Some((msg, std::time::Instant::now()));
+        }
+
+        if data_changed {
+            activity = true;
+        }
+
+        // Check if notification should still be visible
+        if let Some((_, timestamp)) = active_notification {
+            if timestamp.elapsed().as_secs_f32() > 3.0 {
+                active_notification = None;
+            } else {
+                // Keep activity alive while notification is showing
+                activity = true; 
+            }
+        }
+
+        if activity {
+            last_input_time = std::time::Instant::now();
+        }
+
+        let time_since_input = last_input_time.elapsed().as_secs_f32();
+        let new_fps = if !rl.is_window_focused() {
+            1
+        } else if !rl.is_cursor_on_screen() && time_since_input > 2.0 {
+            1
+        } else if time_since_input > 5.0 && !loading {
+            15
+        } else {
+            60
+        };
+
+        if new_fps != current_target_fps {
+            rl.set_target_fps(new_fps);
+            current_target_fps = new_fps;
         }
 
         let mouse_pos = rl.get_mouse_position();
@@ -156,13 +226,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         clay.pointer_state(Vector2::new(mouse_pos.x, mouse_pos.y), mouse_down);
         clay.update_scroll_containers(true, Vector2::new(scroll_delta.x * 50.0, scroll_delta.y * 50.0), rl.get_frame_time());
         clay.set_layout_dimensions(Dimensions::new(rl.get_screen_width() as f32, rl.get_screen_height() as f32));
-
-        let current_state = {
-            let mut guard = state.lock().unwrap();
-            let msg = guard.status_msg.take();
-            (guard.status.clone(), guard.loading, guard.error.clone(), msg, guard.search_query.clone())
-        };
-        let (current_status, loading, error, status_msg, search_query) = current_state;
 
         let mut scroll_pos = Vector2::new(0.0, 0.0);
         if let Some(scroll_data) = clay.scroll_container_data(content_id) {
@@ -219,20 +282,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 clay_scope.text(arena.push(placeholder.to_string()), clay_layout::text::TextConfig::new().font_size((18.0 * font_scale) as u16).color(color).end());
             });
 
-            if let Some(msg) = status_msg {
-                 let mut msg_decl = Declaration::new();
-                 msg_decl.layout()
-                    .width(grow!())
-                    .height(fixed!(35.0 * font_scale))
-                    .child_alignment(Alignment::new(LayoutAlignmentX::Center, LayoutAlignmentY::Center))
-                    .end()
-                    .background_color(Color::u_rgb(0, 80, 150));
-                 let m = arena.push(format!("{} {}", ICON_COPY, msg));
-                 clay_scope.with(&msg_decl, |clay_scope| {
-                    clay_scope.text(m, clay_layout::text::TextConfig::new().font_size((16.0 * font_scale) as u16).color(Color::u_rgb(255, 255, 255)).end());
-                 });
-            }
-
             if loading && current_status.is_none() {
                  let mut loading_decl = Declaration::new();
                  loading_decl.layout().width(grow!()).height(grow!()).child_alignment(Alignment::new(LayoutAlignmentX::Center, LayoutAlignmentY::Center)).end();
@@ -286,6 +335,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         render_node(clay_scope, node, *is_self, i as u32, mouse_pressed, &state, &arena, font_scale, &mut rl);
                     }
                 });
+            }
+
+            // Floating Notification Banner
+            if let Some((msg, _)) = &active_notification {
+                 let mut msg_decl = Declaration::new();
+                 msg_decl.layout()
+                    .padding(Padding::new(24, 24, 12, 12))
+                    .child_alignment(Alignment::new(LayoutAlignmentX::Center, LayoutAlignmentY::Center))
+                    .end()
+                    .background_color(Color::u_rgb(0, 80, 150))
+                    .corner_radius().all(8.0).end();
+                 
+                 msg_decl.floating()
+                    .offset(Vector2::new(0.0, -32.0))
+                    .dimensions(Dimensions::new(0.0, 0.0))
+                    .z_index(100)
+                    .parent_id(clay_scope.id("root").id.id)
+                    .attach_points(FloatingAttachPointType::CenterBottom, FloatingAttachPointType::CenterBottom)
+                    .attach_to(FloatingAttachToElement::Parent)
+                    .pointer_capture_mode(PointerCaptureMode::Passthrough);
+
+                 let m = arena.push(format!("{} {}", ICON_COPY, msg));
+                 clay_scope.with(&msg_decl, |clay_scope| {
+                    clay_scope.text(m, clay_layout::text::TextConfig::new().font_size((16.0 * font_scale) as u16).color(Color::u_rgb(255, 255, 255)).end());
+                 });
             }
         });
 
@@ -382,6 +456,7 @@ where
             rl.set_clipboard_text(&ip_str).unwrap();
             let mut guard = state.lock().unwrap();
             guard.status_msg = Some(format!("Copied {} to clipboard", ip_str));
+            guard.data_changed = true;
         }
     }
 
@@ -493,11 +568,13 @@ async fn refresh_status(state: Arc<Mutex<AppState>>) {
             guard.status = Some(s);
             guard.loading = false;
             guard.error = None;
+            guard.data_changed = true;
         }
         Err(e) => {
             let mut guard = state.lock().unwrap();
             guard.error = Some(e.to_string());
             guard.loading = false;
+            guard.data_changed = true;
         }
     }
 }

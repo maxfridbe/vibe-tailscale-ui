@@ -1,6 +1,6 @@
 [package]
 name = "vibe-tailscale-ui"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "MIT"
 description = "A modern Tailscale node list and exit node selector UI"
